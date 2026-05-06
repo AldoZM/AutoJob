@@ -1,0 +1,16 @@
+# Entornos virtuales
+venv/
+.env
+
+# Playwright y Sesiones (SENSIBLE)
+auth_state.json
+.auth/
+
+# Logs y Datos de usuario
+postulaciones.csv
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
