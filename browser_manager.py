@@ -15,10 +15,13 @@ class BrowserManager:
         self.pw = sync_playwright().start()
         self.browser = self.pw.chromium.launch(headless=self.headless)
         
+        ctx_args = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "viewport": {"width": 1280, "height": 800},
+        }
         if use_auth and os.path.exists(AUTH_FILE):
-            self.context = self.browser.new_context(storage_state=AUTH_FILE)
-        else:
-            self.context = self.browser.new_context()
+            ctx_args["storage_state"] = AUTH_FILE
+        self.context = self.browser.new_context(**ctx_args)
         
         return self.context.new_page()
 

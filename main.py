@@ -1,42 +1,75 @@
 import typer
 import os
+import time
 from rich.console import Console
 from rich.table import Table
+from dotenv import load_dotenv
 from browser_manager import BrowserManager, AUTH_FILE
+
+load_dotenv()
 
 app = typer.Typer()
 console = Console()
+
+LOGIN_URLS = {
+    "occ": "https://www.occ.com.mx/login"
+}
+
+CREDENTIALS = {
+    "occ": {
+        "email": os.getenv("OCC_EMAIL"),
+        "password": os.getenv("OCC_PASSWORD"),
+    }
+}
 
 def get_bot(platform: str, page):
     if platform.lower() == "occ":
         from occ_bot import OCCBot
         return OCCBot(page)
-    # Aquí se añadirán más plataformas (Indeed, LinkedIn, etc.)
     else:
         raise ValueError(f"Plataforma '{platform}' no soportada actualmente.")
+
+def _auto_login_occ(page, email: str, password: str) -> bool:
+    try:
+        page.wait_for_selector('input[type="email"], input[name="email"]', timeout=10000)
+        page.fill('input[type="email"], input[name="email"]', email)
+        page.fill('input[type="password"]', password)
+        page.click('button[type="submit"]')
+        page.wait_for_url(lambda url: "login" not in url, timeout=15000)
+        return True
+    except Exception as e:
+        console.print(f"[red]Auto-login falló: {e}[/red]")
+        return False
 
 @app.command()
 def login(platform: str = typer.Option("occ", "--platform", "-p", help="Plataforma para iniciar sesión")):
     """
-    Abre el navegador para iniciar sesión manualmente.
+    Inicia sesión. Si hay credenciales en .env lo hace automático, si no abre el navegador para login manual.
     """
-    console.print(f"[bold blue]Iniciando navegador para Login en {platform.upper()}...[/bold blue]")
+    creds = CREDENTIALS.get(platform.lower(), {})
+    email = creds.get("email")
+    password = creds.get("password")
+    auto = bool(email and password)
+
+    console.print(f"[bold blue]Login en {platform.upper()} ({'automático' if auto else 'manual'})...[/bold blue]")
+
     bm = BrowserManager(headless=False)
     page = bm.start(use_auth=False)
-    
-    urls = {
-        "occ": "https://www.occ.com.mx/login"
-    }
-    
-    page.goto(urls.get(platform.lower(), "https://google.com"))
-    
-    console.print("[yellow]Inicia sesión manualmente. Cierra el navegador al terminar para guardar.[/yellow]")
-    
+    page.goto(LOGIN_URLS.get(platform.lower(), "https://google.com"))
+
+    if auto:
+        success = _auto_login_occ(page, email, password)
+        if not success:
+            console.print("[yellow]Auto-login falló. Completa el login manualmente y cierra el navegador.[/yellow]")
+
+    if not auto or not success:
+        console.print("[yellow]Inicia sesión manualmente. Cierra el navegador al terminar para guardar.[/yellow]")
+
     try:
-        page.wait_for_timeout(600000) 
+        page.wait_for_event("close", timeout=600000)
     except Exception:
         pass
-    
+
     bm.save_auth()
     bm.stop()
     console.print("[bold green]Sesión guardada exitosamente.[/bold green]")

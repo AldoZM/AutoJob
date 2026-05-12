@@ -1,0 +1,98 @@
+== AUTOJOB — CONTEXT FILE ==
+Last updated: 2026-05-12
+Mode: caveman
+
+== WHAT IS PROJECT ==
+AutoJob = CLI bot para postularse automáticamente a empleos en OCC (y futuras plataformas).
+Stack: Python + Playwright + Typer + Rich
+Repo: https://github.com/AldoZM/AutoJob
+
+== OBJETIVO ==
+Automatizar postulaciones en bolsas de trabajo.
+Usuario corre: python main.py apply --search "Puesto" --location "Ciudad" --limit N
+Bot busca vacantes, entra a cada una, da click en "Postularme", registra en CSV.
+
+== TECH STACK ==
+- playwright: controla Chromium (no instala browser del sistema, descarga el suyo)
+- typer: CLI commands (login, apply)
+- rich: output con colores y tablas
+- python-dotenv: lee .env para credenciales
+- Chromium: descargado en ~/.local/ms-playwright/ via `playwright install chromium`
+
+== ESTRUCTURA ==
+base_bot.py       — clase abstracta, CSV logging
+browser_manager.py — Playwright browser con user-agent y viewport
+main.py           — CLI: login + apply commands, auto-login desde .env
+occ_bot.py        — implementación OCC
+requirements.txt  — playwright, typer, rich, python-dotenv
+.env.example      — plantilla de credenciales
+.env              — credenciales reales (gitignoreado)
+auth_state.json   — sesión guardada de Playwright (gitignoreado)
+postulaciones.csv — log de postulaciones (gitignoreado)
+
+== CÓMO CORRER ==
+cd "D:\Codigo Abierto\AutoJob"
+venv\Scripts\activate
+
+# Primera vez:
+pip install -r requirements.txt
+playwright install chromium
+
+# Login (solo primera vez o si expira sesión):
+python main.py login --platform occ
+# Si .env tiene OCC_EMAIL y OCC_PASSWORD -> auto-login headless
+# Si no -> abre navegador visible, inicias sesión tú y cierras la ventana
+
+# Postular:
+python main.py apply --search "Desarrollador Python" --location "Ciudad de Mexico" --limit 20
+
+== CREDENCIALES (.env) ==
+OCC_EMAIL=zetinaa3@gmail.com
+OCC_PASSWORD=[ver .env local — no subir al repo]
+El archivo .env ya está creado localmente y gitignoreado.
+
+== LO QUE FUNCIONA (main — estado actual) ==
+1. Login manual: abre Chromium visible, usuario inicia sesión, guarda auth_state.json
+2. Login automático: si .env tiene credenciales, hace auto-fill del form
+   - PENDIENTE: auto-login falla porque OCC renderiza el form con JS y el selector no matchea
+   - Fallback: muestra navegador visible para login manual
+3. apply command: busca por URL directa (no usa UI de búsqueda)
+4. get_job_links(): usa selector [data-id] para obtener 22+ vacantes
+   - Extrae título y empresa del card en la listing page
+5. apply_to_job(): navega a /empleo/oferta/{id}, busca botón "Postularme", da click
+6. Log CSV: postulaciones.csv con fecha, plataforma, puesto, empresa, estado, URL
+7. Resumen final con tabla Rich
+
+== OCC — DETALLES TÉCNICOS ==
+Búsqueda URL: https://www.occ.com.mx/empleos/trabajo-en-{query}/en-{location}/
+Job cards: elementos con atributo data-id en la listing page (no son <a>, son <div>)
+Job detail URL: https://www.occ.com.mx/empleo/oferta/{job_id}
+Apply button: button:has-text("Postularme")
+Anti-bot: OCC detecta headless sin user-agent → no renderiza cards
+Fix: BrowserManager siempre usa user-agent Chrome real + viewport 1280x800
+
+== PENDIENTES ==
+1. Auto-login OCC: el selector de email/password no matchea el form de OCC
+   - OCC renderiza el form con JS, necesita esperar más o usar selector correcto
+   - Workaround actual: siempre login manual (funciona bien)
+2. Soporte LinkedIn / Indeed: no implementado, solo OCC
+3. Skip formularios: detección básica ("preguntas" en URL), mejorable
+4. Paginación: solo procesa página 1 de resultados (20-25 vacantes max)
+
+== REPO STATE ==
+Branch: main
+Último commit: fix(occ): fix job detection, auto-login, and user-agent for OCC
+
+== HOW TO REBUILD VENV ==
+cd "D:\Codigo Abierto\AutoJob"
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+
+== CAVEMAN REMINDER ==
+Al retomar:
+1. git pull origin main
+2. Lee este archivo
+3. Activa venv: venv\Scripts\activate
+4. Continúa desde PENDIENTES
